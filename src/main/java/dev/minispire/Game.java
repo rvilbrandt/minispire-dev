@@ -16,14 +16,20 @@ public final class Game {
     private final RandomGenerator random;
     private final Player player;
     private final GameMap map;
+    private final GameObserver observer;
     private boolean inputClosed;
 
     public Game(InputStream input, PrintStream output, RandomGenerator random) {
+        this(input, output, random, GameObserver.NONE);
+    }
+
+    public Game(InputStream input, PrintStream output, RandomGenerator random, GameObserver observer) {
         this.input = new Scanner(input, StandardCharsets.UTF_8);
         this.output = output;
         this.random = random;
         this.player = new Player("Wanderer");
         this.map = new GameMap(random);
+        this.observer = observer;
     }
 
     public Player player() {
@@ -33,11 +39,15 @@ public final class Game {
     public void run() {
         printTitle();
         for (int act = 1; act <= ACTS && player.isAlive(); act++) {
+            List<MapNode> visitedNodes = new ArrayList<>();
             output.println("%n========== AKT %d ==========".formatted(act));
             for (int floor = 1; floor <= GameMap.FLOORS_PER_ACT && player.isAlive(); floor++) {
                 printRunStatus(act, floor);
                 List<MapNode> choices = map.choices(floor);
+                observer.mapChanged(new MapViewState(act, floor, visitedNodes, choices));
                 MapNode selected = choices.get(choose("Wähle deinen Weg", choices, 1) - 1);
+                visitedNodes.add(selected);
+                observer.mapChanged(new MapViewState(act, floor, visitedNodes, List.of()));
                 output.println("%nDu betrittst: " + selected.type().displayName());
                 resolveNode(selected.type(), act);
             }

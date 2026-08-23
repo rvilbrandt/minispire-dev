@@ -6,6 +6,7 @@ import javax.swing.JFrame;
 import javax.swing.JLabel;
 import javax.swing.JPanel;
 import javax.swing.JScrollPane;
+import javax.swing.JSplitPane;
 import javax.swing.JTextArea;
 import javax.swing.JTextField;
 import javax.swing.SwingConstants;
@@ -31,6 +32,7 @@ public final class GameWindow extends JFrame {
     private static final Color ACCENT = new Color(205, 112, 72);
 
     private final JTextArea gameOutput = new JTextArea();
+    private final MapPanel mapPanel = new MapPanel();
     private final JTextField commandInput = new JTextField();
     private final JButton submitButton = new JButton("Eingeben");
     private final PipedInputStream gameInput;
@@ -60,7 +62,7 @@ public final class GameWindow extends JFrame {
                 new TextAreaOutputStream(gameOutput), true, StandardCharsets.UTF_8);
         Thread.ofVirtual()
                 .name("minispire-game-loop")
-                .start(() -> new Game(gameInput, gamePrintStream, RandomGenerator.getDefault()).run());
+                .start(() -> new Game(gameInput, gamePrintStream, RandomGenerator.getDefault(), mapPanel::showMap).run());
         commandInput.requestFocusInWindow();
     }
 
@@ -82,7 +84,7 @@ public final class GameWindow extends JFrame {
         root.setBackground(BACKGROUND);
         root.setBorder(BorderFactory.createEmptyBorder(18, 20, 18, 20));
         root.add(createHeader(), BorderLayout.NORTH);
-        root.add(createGameView(), BorderLayout.CENTER);
+        root.add(createCenterArea(), BorderLayout.CENTER);
         root.add(createInputArea(), BorderLayout.SOUTH);
         return root;
     }
@@ -119,6 +121,16 @@ public final class GameWindow extends JFrame {
         scrollPane.getViewport().setBackground(PANEL);
         scrollPane.getVerticalScrollBar().setUnitIncrement(18);
         return scrollPane;
+    }
+
+    private JSplitPane createCenterArea() {
+        JSplitPane splitPane = new JSplitPane(JSplitPane.HORIZONTAL_SPLIT, mapPanel, createGameView());
+        splitPane.setBorder(null);
+        splitPane.setDividerSize(8);
+        splitPane.setResizeWeight(0.34);
+        splitPane.setContinuousLayout(true);
+        splitPane.setBackground(BACKGROUND);
+        return splitPane;
     }
 
     private JPanel createInputArea() {
