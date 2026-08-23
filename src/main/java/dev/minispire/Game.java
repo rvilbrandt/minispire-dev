@@ -293,6 +293,7 @@ public final class Game {
 
     private String ask(String prompt) {
         output.print(prompt);
+        output.flush();
         if (!input.hasNextLine()) {
             inputClosed = true;
             return "";

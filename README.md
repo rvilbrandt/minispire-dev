@@ -11,10 +11,16 @@ mvn compile
 java -cp target/classes dev.minispire.App
 ```
 
-In VS Code kann `App.java` auch mit `Strg+F5` gestartet werden.
+Standardmäßig öffnet sich die grafische Swing-Oberfläche. In VS Code kann `App.java` auch mit `Strg+F5`
+gestartet werden. Die klassische Terminalansicht bleibt über folgenden Befehl verfügbar:
+
+```powershell
+java -cp target/classes dev.minispire.App --console
+```
 
 ## Steuerung
 
+- Zahlen und Befehle werden in das Eingabefeld am unteren Fensterrand eingegeben und mit Enter bestätigt.
 - Entscheidungen werden über die angezeigten Nummern getroffen.
 - Im Kampf spielt eine Nummer die entsprechende Handkarte.
 - `0` beendet den Spielerzug.
