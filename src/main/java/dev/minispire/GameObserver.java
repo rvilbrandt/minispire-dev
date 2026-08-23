@@ -1,9 +1,18 @@
 package dev.minispire;
 
-@FunctionalInterface
 public interface GameObserver {
-    GameObserver NONE = state -> {
+    GameObserver NONE = new GameObserver() {
     };
 
-    void mapChanged(MapViewState state);
+    default void mapChanged(MapViewState state) {
+    }
+
+    default void combatChanged(CombatViewState state) {
+    }
+
+    default void combatEnded() {
+    }
+
+    default void deckChanged(java.util.List<CardView> deck) {
+    }
 }

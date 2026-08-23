@@ -33,6 +33,7 @@ public final class GameWindow extends JFrame {
 
     private final JTextArea gameOutput = new JTextArea();
     private final MapPanel mapPanel = new MapPanel();
+    private final CardsPanel cardsPanel = new CardsPanel(this::submitCard);
     private final JTextField commandInput = new JTextField();
     private final JButton submitButton = new JButton("Eingeben");
     private final PipedInputStream gameInput;
@@ -60,16 +61,37 @@ public final class GameWindow extends JFrame {
         started = true;
         PrintStream gamePrintStream = new PrintStream(
                 new TextAreaOutputStream(gameOutput), true, StandardCharsets.UTF_8);
+        GameObserver uiObserver = new GameObserver() {
+            @Override
+            public void mapChanged(MapViewState state) {
+                mapPanel.showMap(state);
+            }
+
+            @Override
+            public void combatChanged(CombatViewState state) {
+                cardsPanel.showCombat(state);
+            }
+
+            @Override
+            public void combatEnded() {
+                cardsPanel.clearHand();
+            }
+
+            @Override
+            public void deckChanged(java.util.List<CardView> deck) {
+                cardsPanel.showDeck(deck);
+            }
+        };
         Thread.ofVirtual()
                 .name("minispire-game-loop")
-                .start(() -> new Game(gameInput, gamePrintStream, RandomGenerator.getDefault(), mapPanel::showMap).run());
+                .start(() -> new Game(gameInput, gamePrintStream, RandomGenerator.getDefault(), uiObserver).run());
         commandInput.requestFocusInWindow();
     }
 
     private void configureWindow() {
         setDefaultCloseOperation(WindowConstants.DISPOSE_ON_CLOSE);
-        setMinimumSize(new Dimension(760, 560));
-        setSize(960, 700);
+        setMinimumSize(new Dimension(900, 680));
+        setSize(1180, 850);
         setLocationRelativeTo(null);
         addWindowListener(new WindowAdapter() {
             @Override
@@ -84,7 +106,7 @@ public final class GameWindow extends JFrame {
         root.setBackground(BACKGROUND);
         root.setBorder(BorderFactory.createEmptyBorder(18, 20, 18, 20));
         root.add(createHeader(), BorderLayout.NORTH);
-        root.add(createCenterArea(), BorderLayout.CENTER);
+        root.add(createMainArea(), BorderLayout.CENTER);
         root.add(createInputArea(), BorderLayout.SOUTH);
         return root;
     }
@@ -133,11 +155,21 @@ public final class GameWindow extends JFrame {
         return splitPane;
     }
 
+    private JSplitPane createMainArea() {
+        JSplitPane splitPane = new JSplitPane(JSplitPane.VERTICAL_SPLIT, createCenterArea(), cardsPanel);
+        splitPane.setBorder(null);
+        splitPane.setDividerSize(8);
+        splitPane.setResizeWeight(0.68);
+        splitPane.setContinuousLayout(true);
+        splitPane.setBackground(BACKGROUND);
+        return splitPane;
+    }
+
     private JPanel createInputArea() {
         JPanel container = new JPanel(new BorderLayout(10, 7));
         container.setOpaque(false);
 
-        JLabel hint = new JLabel("Zahl eingeben · 0 beendet den Zug · D zeigt das Deck");
+        JLabel hint = new JLabel("Handkarte anklicken und bestätigen · Zahlen bleiben für Wege, Ziele und andere Entscheidungen");
         hint.setForeground(MUTED_TEXT);
         hint.setFont(new Font(Font.SANS_SERIF, Font.PLAIN, 13));
 
@@ -174,10 +206,18 @@ public final class GameWindow extends JFrame {
         if (command.isEmpty()) {
             return;
         }
+        submitCommand(command, command);
+    }
+
+    private void submitCard(int cardNumber) {
+        submitCommand(Integer.toString(cardNumber), "Karte " + cardNumber);
+    }
+
+    private void submitCommand(String command, String displayText) {
         try {
             userInput.write((command + System.lineSeparator()).getBytes(StandardCharsets.UTF_8));
             userInput.flush();
-            gameOutput.append("\n> " + command + "\n");
+            gameOutput.append("\n> " + displayText + "\n");
             gameOutput.setCaretPosition(gameOutput.getDocument().getLength());
             commandInput.setText("");
             commandInput.requestFocusInWindow();

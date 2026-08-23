@@ -38,6 +38,7 @@ public final class Game {
 
     public void run() {
         printTitle();
+        notifyDeckChanged();
         for (int act = 1; act <= ACTS && player.isAlive(); act++) {
             List<MapNode> visitedNodes = new ArrayList<>();
             output.println("%n========== AKT %d ==========".formatted(act));
@@ -91,6 +92,7 @@ public final class Game {
 
             while (!combat.isWon() && player.energy() >= 0) {
                 printCombatState(combat);
+                observer.combatChanged(CombatViewState.from(combat, true));
                 String command = ask("Karte spielen (Nummer), [D]eck ansehen oder [0] Zug beenden: ").trim();
                 if (inputClosed) {
                     break;
@@ -101,6 +103,7 @@ public final class Game {
                 }
                 int selection = parseInt(command, -1);
                 if (selection == 0) {
+                    observer.combatChanged(CombatViewState.from(combat, false));
                     break;
                 }
                 if (selection < 1 || selection > combat.hand().size()) {
@@ -111,10 +114,12 @@ public final class Game {
                 Card card = combat.hand().get(selection - 1);
                 int target = 0;
                 if (targetsEnemy(card) && combat.livingEnemies().size() > 1) {
+                    observer.combatChanged(CombatViewState.from(combat, false));
                     target = chooseEnemy(combat.livingEnemies()) - 1;
                 }
                 PlayResult result = combat.playCard(selection - 1, target);
                 output.println(result.message());
+                observer.combatChanged(CombatViewState.from(combat, false));
                 if (!result.successful()) {
                     continue;
                 }
@@ -124,10 +129,13 @@ public final class Game {
             }
 
             if (!combat.isWon()) {
+                observer.combatChanged(CombatViewState.from(combat, false));
                 output.println("%nGegnerzug:");
                 printEvents(combat.endPlayerTurn());
             }
         }
+
+        observer.combatEnded();
 
         if (combat.isWon()) {
             int healed = player.finishWonCombat();
@@ -159,6 +167,7 @@ public final class Game {
         if (choice > 0) {
             Card card = rewards.get(choice - 1);
             player.addCard(card);
+            notifyDeckChanged();
             output.println(card.name() + " wurde dem Deck hinzugefügt.");
         }
     }
@@ -188,6 +197,7 @@ public final class Game {
         int choice = chooseNumber("Karte verbessern", 1, upgradeable.size(), 1);
         Card card = upgradeable.get(choice - 1);
         card.upgrade();
+        notifyDeckChanged();
         output.println(card.name() + " wurde verbessert: " + card.description());
     }
 
@@ -335,5 +345,9 @@ public final class Game {
         output.println("          M I N I S P I R E");
         output.println("=================================");
         output.println("Erklimme drei Akte. Wähle Wege, verbessere dein Deck und besiege die Bosse.");
+    }
+
+    private void notifyDeckChanged() {
+        observer.deckChanged(CombatViewState.toViews(player.deck()));
     }
 }

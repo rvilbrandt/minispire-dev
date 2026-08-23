@@ -18,8 +18,26 @@ class GameTest {
     void startsAndHandlesClosedInputWithoutLoopingForever() {
         ByteArrayOutputStream bytes = new ByteArrayOutputStream();
         List<MapViewState> mapStates = new ArrayList<>();
+        List<CombatViewState> combatStates = new ArrayList<>();
+        List<List<CardView>> deckStates = new ArrayList<>();
+        GameObserver observer = new GameObserver() {
+            @Override
+            public void mapChanged(MapViewState state) {
+                mapStates.add(state);
+            }
+
+            @Override
+            public void combatChanged(CombatViewState state) {
+                combatStates.add(state);
+            }
+
+            @Override
+            public void deckChanged(List<CardView> deck) {
+                deckStates.add(deck);
+            }
+        };
         Game game = new Game(new ByteArrayInputStream(new byte[0]),
-                new PrintStream(bytes, true, StandardCharsets.UTF_8), new Random(3), mapStates::add);
+                new PrintStream(bytes, true, StandardCharsets.UTF_8), new Random(3), observer);
 
         game.run();
 
@@ -28,5 +46,8 @@ class GameTest {
         assertTrue(output.contains("Der Durchlauf endet hier"));
         assertEquals(NodeType.COMBAT, mapStates.getFirst().choices().getFirst().type());
         assertEquals(NodeType.COMBAT, mapStates.get(1).visited().getFirst().type());
+        assertEquals(10, deckStates.getFirst().size());
+        assertEquals(Player.CARDS_PER_TURN, combatStates.getFirst().hand().size());
+        assertTrue(combatStates.getFirst().acceptingCardSelection());
     }
 }

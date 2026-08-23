@@ -20,7 +20,9 @@ java -cp target/classes dev.minispire.App --console
 
 ## Steuerung
 
-- Zahlen und Befehle werden in das Eingabefeld am unteren Fensterrand eingegeben und mit Enter bestätigt.
+- Handkarten werden mit der Maus ausgewählt und über `Karte bestätigen` ausgespielt.
+- Das dauerhafte Deck wird neben der aktuellen Hand als scrollbare Kartenübersicht angezeigt.
+- Zahlen für Wege, Gegnerziele und andere Entscheidungen werden weiterhin im Eingabefeld eingegeben.
 - Entscheidungen werden über die angezeigten Nummern getroffen.
 - Im Kampf spielt eine Nummer die entsprechende Handkarte.
 - `0` beendet den Spielerzug.
