@@ -34,6 +34,7 @@ public final class GameWindow extends JFrame {
     private final JTextArea gameOutput = new JTextArea();
     private final MapPanel mapPanel = new MapPanel();
     private final CardsPanel cardsPanel = new CardsPanel(this::submitCard);
+    private final EnemiesPanel enemiesPanel = new EnemiesPanel(this::submitTarget);
     private final JTextField commandInput = new JTextField();
     private final JButton submitButton = new JButton("Eingeben");
     private final PipedInputStream gameInput;
@@ -70,11 +71,13 @@ public final class GameWindow extends JFrame {
             @Override
             public void combatChanged(CombatViewState state) {
                 cardsPanel.showCombat(state);
+                enemiesPanel.showCombat(state);
             }
 
             @Override
             public void combatEnded() {
                 cardsPanel.clearHand();
+                enemiesPanel.clearEnemies();
             }
 
             @Override
@@ -146,10 +149,20 @@ public final class GameWindow extends JFrame {
     }
 
     private JSplitPane createCenterArea() {
-        JSplitPane splitPane = new JSplitPane(JSplitPane.HORIZONTAL_SPLIT, mapPanel, createGameView());
+        JSplitPane splitPane = new JSplitPane(JSplitPane.HORIZONTAL_SPLIT, mapPanel, createEncounterArea());
         splitPane.setBorder(null);
         splitPane.setDividerSize(8);
         splitPane.setResizeWeight(0.34);
+        splitPane.setContinuousLayout(true);
+        splitPane.setBackground(BACKGROUND);
+        return splitPane;
+    }
+
+    private JSplitPane createEncounterArea() {
+        JSplitPane splitPane = new JSplitPane(JSplitPane.VERTICAL_SPLIT, enemiesPanel, createGameView());
+        splitPane.setBorder(null);
+        splitPane.setDividerSize(8);
+        splitPane.setResizeWeight(0.38);
         splitPane.setContinuousLayout(true);
         splitPane.setBackground(BACKGROUND);
         return splitPane;
@@ -169,7 +182,7 @@ public final class GameWindow extends JFrame {
         JPanel container = new JPanel(new BorderLayout(10, 7));
         container.setOpaque(false);
 
-        JLabel hint = new JLabel("Handkarte anklicken und bestätigen · Zahlen bleiben für Wege, Ziele und andere Entscheidungen");
+        JLabel hint = new JLabel("Handkarte bestätigen, Gegnerziel anklicken · Zahlen bleiben als Fallback verfügbar");
         hint.setForeground(MUTED_TEXT);
         hint.setFont(new Font(Font.SANS_SERIF, Font.PLAIN, 13));
 
@@ -211,6 +224,10 @@ public final class GameWindow extends JFrame {
 
     private void submitCard(int cardNumber) {
         submitCommand(Integer.toString(cardNumber), "Karte " + cardNumber);
+    }
+
+    private void submitTarget(int targetNumber) {
+        submitCommand(Integer.toString(targetNumber), "Ziel " + targetNumber);
     }
 
     private void submitCommand(String command, String displayText) {

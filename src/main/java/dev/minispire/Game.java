@@ -114,7 +114,7 @@ public final class Game {
                 Card card = combat.hand().get(selection - 1);
                 int target = 0;
                 if (targetsEnemy(card) && combat.livingEnemies().size() > 1) {
-                    observer.combatChanged(CombatViewState.from(combat, false));
+                    observer.combatChanged(CombatViewState.from(combat, false, true));
                     target = chooseEnemy(combat.livingEnemies()) - 1;
                 }
                 PlayResult result = combat.playCard(selection - 1, target);

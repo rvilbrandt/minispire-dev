@@ -11,6 +11,7 @@ import java.util.List;
 import java.util.Random;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class GameTest {
@@ -49,5 +50,7 @@ class GameTest {
         assertEquals(10, deckStates.getFirst().size());
         assertEquals(Player.CARDS_PER_TURN, combatStates.getFirst().hand().size());
         assertTrue(combatStates.getFirst().acceptingCardSelection());
+        assertTrue(combatStates.getFirst().enemies().getFirst().hp() > 0);
+        assertFalse(combatStates.getFirst().enemies().getFirst().intentDescription().isBlank());
     }
 }
