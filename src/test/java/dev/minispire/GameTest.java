@@ -2,10 +2,6 @@ package dev.minispire;
 
 import org.junit.jupiter.api.Test;
 
-import java.io.ByteArrayInputStream;
-import java.io.ByteArrayOutputStream;
-import java.io.PrintStream;
-import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Random;
@@ -16,8 +12,9 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class GameTest {
     @Test
-    void startsAndHandlesClosedInputWithoutLoopingForever() {
-        ByteArrayOutputStream bytes = new ByteArrayOutputStream();
+    void runsThroughStructuredInteractionsWithoutConsoleIo() {
+        List<String> messages = new ArrayList<>();
+        List<ChoiceRequest> requests = new ArrayList<>();
         List<MapViewState> mapStates = new ArrayList<>();
         List<CombatViewState> combatStates = new ArrayList<>();
         List<List<CardView>> deckStates = new ArrayList<>();
@@ -43,14 +40,27 @@ class GameTest {
                 playerStates.add(player);
             }
         };
-        Game game = new Game(new ByteArrayInputStream(new byte[0]),
-                new PrintStream(bytes, true, StandardCharsets.UTF_8), new Random(3), observer);
+        GameInteraction interaction = new GameInteraction() {
+            @Override
+            public void message(String message) {
+                messages.add(message);
+            }
+
+            @Override
+            public int choose(ChoiceRequest request) {
+                requests.add(request);
+                return request.defaultValue();
+            }
+        };
+        Game game = new Game(interaction, new Random(3), observer);
 
         game.run();
 
-        String output = bytes.toString(StandardCharsets.UTF_8);
-        assertTrue(output.contains("M I N I S P I R E"));
+        String output = String.join("\n", messages);
+        assertTrue(output.contains("Willkommen bei Minispire"));
         assertTrue(output.contains("Der Durchlauf endet hier"));
+        assertEquals(ChoiceKind.MAP_NODE, requests.getFirst().kind());
+        assertTrue(requests.stream().anyMatch(request -> request.kind() == ChoiceKind.COMBAT_ACTION));
         assertEquals(NodeType.COMBAT, mapStates.getFirst().choices().getFirst().type());
         assertEquals(NodeType.COMBAT, mapStates.get(1).visited().getFirst().type());
         assertEquals(10, deckStates.getFirst().size());

@@ -45,4 +45,20 @@ class CardsPanelTest {
         assertFalse(panel.handButtons().getFirst().isEnabled());
         assertFalse(panel.confirmButton().isEnabled());
     }
+
+    @Test
+    void endTurnButtonSubmitsWithoutTextInput() throws Exception {
+        AtomicInteger endedTurns = new AtomicInteger();
+        CardsPanel panel = new CardsPanel(ignored -> {
+        }, endedTurns::incrementAndGet);
+        CardView strike = new CardView("Schlag", CardType.ATTACK, 1, "6 Schaden", false);
+
+        SwingUtilities.invokeAndWait(() -> {
+            panel.showCombat(new CombatViewState(List.of(strike), List.of(strike), 3, true));
+            panel.endTurnButton().doClick();
+        });
+
+        assertEquals(1, endedTurns.get());
+        assertFalse(panel.endTurnButton().isEnabled());
+    }
 }

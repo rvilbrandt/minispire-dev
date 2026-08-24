@@ -1,9 +1,5 @@
 package dev.minispire;
 
-import java.awt.GraphicsEnvironment;
-import java.util.Arrays;
-import java.util.random.RandomGenerator;
-
 public final class App {
     private App() {
     }
@@ -13,11 +9,6 @@ public final class App {
     }
 
     public static void main(String[] args) {
-        boolean consoleMode = Arrays.asList(args).contains("--console");
-        if (consoleMode || GraphicsEnvironment.isHeadless()) {
-            new Game(System.in, System.out, RandomGenerator.getDefault()).run();
-        } else {
-            SwingGameLauncher.launch();
-        }
+        SwingGameLauncher.launch();
     }
 }

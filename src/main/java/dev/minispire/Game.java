@@ -1,31 +1,19 @@
 package dev.minispire;
 
-import java.io.InputStream;
-import java.io.PrintStream;
-import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Scanner;
 import java.util.random.RandomGenerator;
 
 public final class Game {
     public static final int ACTS = 3;
 
-    private final Scanner input;
-    private final PrintStream output;
+    private final GameInteraction interaction;
     private final RandomGenerator random;
     private final Player player;
     private final GameMap map;
     private final GameObserver observer;
-    private boolean inputClosed;
-
-    public Game(InputStream input, PrintStream output, RandomGenerator random) {
-        this(input, output, random, GameObserver.NONE);
-    }
-
-    public Game(InputStream input, PrintStream output, RandomGenerator random, GameObserver observer) {
-        this.input = new Scanner(input, StandardCharsets.UTF_8);
-        this.output = output;
+    public Game(GameInteraction interaction, RandomGenerator random, GameObserver observer) {
+        this.interaction = interaction;
         this.random = random;
         this.player = new Player("Wanderer");
         this.map = new GameMap(random);
@@ -42,29 +30,32 @@ public final class Game {
         notifyDeckChanged();
         for (int act = 1; act <= ACTS && player.isAlive(); act++) {
             List<MapNode> visitedNodes = new ArrayList<>();
-            output.println("%n========== AKT %d ==========".formatted(act));
+            message("Akt %d beginnt.".formatted(act));
             for (int floor = 1; floor <= GameMap.FLOORS_PER_ACT && player.isAlive(); floor++) {
                 printRunStatus(act, floor);
                 List<MapNode> choices = map.choices(floor);
                 observer.mapChanged(new MapViewState(act, floor, visitedNodes, choices));
-                MapNode selected = choices.get(choose("Wähle deinen Weg", choices, 1) - 1);
+                List<ChoiceOption> nodeOptions = indexedOptions(choices.stream().map(MapNode::toString).toList());
+                int nodeChoice = choose(ChoiceKind.MAP_NODE, "Weg wählen",
+                        "Wähle den nächsten Knoten auf der Karte.", nodeOptions, 1);
+                MapNode selected = choices.get(nodeChoice - 1);
                 visitedNodes.add(selected);
                 observer.mapChanged(new MapViewState(act, floor, visitedNodes, List.of()));
-                output.println("%nDu betrittst: " + selected.type().displayName());
+                message("Du betrittst: " + selected.type().displayName());
                 resolveNode(selected.type(), act);
                 notifyPlayerChanged(false);
             }
             if (player.isAlive() && act < ACTS) {
                 int healed = player.heal(player.maxHp() / 4);
-                output.println("%nAkt %d geschafft! Auf dem Weg zum nächsten Akt heilst du %d HP.".formatted(act, healed));
+                message("Akt %d geschafft! Auf dem Weg zum nächsten Akt heilst du %d HP.".formatted(act, healed));
                 notifyPlayerChanged(false);
             }
         }
 
         if (player.isAlive()) {
-            output.println("%n*** SIEG! Du hast den Turm bezwungen. ***");
+            message("SIEG! Du hast den Turm bezwungen.");
         } else {
-            output.println("%n*** Du bist gefallen. Der Durchlauf endet hier. ***");
+            message("Du bist gefallen. Der Durchlauf endet hier.");
         }
     }
 
@@ -80,35 +71,32 @@ public final class Game {
     }
 
     private void runCombat(List<Enemy> enemies, boolean elite, boolean boss) {
-        output.println("Gegner: " + enemies.stream().map(Enemy::name)
-                .reduce((left, right) -> left + ", " + right).orElse(""));
+        message("Kampf gegen " + enemies.stream().map(Enemy::name)
+                .reduce((left, right) -> left + " und " + right).orElse(""));
         Combat combat = new Combat(player, enemies, random);
 
         while (!combat.isWon() && !combat.isLost()) {
-            output.println("%n--- Zug %d ---".formatted(combat.turn() + 1));
+            message("Zug %d beginnt.".formatted(combat.turn() + 1));
             printEvents(combat.startPlayerTurn());
             if (combat.isWon() || combat.isLost()) {
                 break;
             }
 
             while (!combat.isWon() && player.energy() >= 0) {
-                printCombatState(combat);
                 notifyCombatChanged(combat, true, false);
-                String command = ask("Karte spielen (Nummer), [D]eck ansehen oder [0] Zug beenden: ").trim();
-                if (inputClosed) {
-                    break;
+                List<ChoiceOption> actions = new ArrayList<>();
+                actions.add(new ChoiceOption(0, "Zug beenden"));
+                for (int index = 0; index < combat.hand().size(); index++) {
+                    actions.add(new ChoiceOption(index + 1, combat.hand().get(index).toString()));
                 }
-                if (command.equalsIgnoreCase("d")) {
-                    printDeck();
-                    continue;
-                }
-                int selection = parseInt(command, -1);
+                int selection = choose(ChoiceKind.COMBAT_ACTION, "Spielerzug",
+                        "Wähle eine Handkarte oder beende den Zug.", actions, 0);
                 if (selection == 0) {
                     notifyCombatChanged(combat, false, false);
                     break;
                 }
                 if (selection < 1 || selection > combat.hand().size()) {
-                    output.println("Bitte wähle eine vorhandene Karte.");
+                    message("Diese Handkarte ist nicht mehr verfügbar.");
                     continue;
                 }
 
@@ -119,7 +107,7 @@ public final class Game {
                     target = chooseEnemy(combat.livingEnemies()) - 1;
                 }
                 PlayResult result = combat.playCard(selection - 1, target);
-                output.println(result.message());
+                message(result.message());
                 notifyCombatChanged(combat, false, false);
                 if (!result.successful()) {
                     continue;
@@ -131,7 +119,7 @@ public final class Game {
 
             if (!combat.isWon()) {
                 notifyCombatChanged(combat, false, false);
-                output.println("%nGegnerzug:");
+                message("Die Gegner führen ihre Aktionen aus.");
                 printEvents(combat.endPlayerTurn());
                 notifyCombatChanged(combat, false, false);
             }
@@ -141,7 +129,7 @@ public final class Game {
 
         if (combat.isWon()) {
             int healed = player.finishWonCombat();
-            output.println("%nKampf gewonnen!" + (healed > 0 ? " Brennendes Blut heilt " + healed + " HP." : ""));
+            message("Kampf gewonnen!" + (healed > 0 ? " Brennendes Blut heilt " + healed + " HP." : ""));
             grantCombatRewards(elite, boss);
         }
         notifyPlayerChanged(false);
@@ -151,7 +139,7 @@ public final class Game {
         int baseGold = boss ? 90 : elite ? 45 + random.nextInt(16) : 20 + random.nextInt(16);
         int gold = player.hasRelic(Relic.GOLDEN_IDOL) ? baseGold * 5 / 4 : baseGold;
         player.addGold(gold);
-        output.println("Belohnung: %d Gold.".formatted(gold));
+        message("Belohnung: %d Gold.".formatted(gold));
         notifyPlayerChanged(false);
 
         if (elite || boss) {
@@ -162,27 +150,29 @@ public final class Game {
 
     private void chooseCardReward() {
         List<Card> rewards = CardLibrary.randomRewards(random, 3);
-        output.println("%nKartenbelohnung:");
+        List<ChoiceOption> options = new ArrayList<>();
+        options.add(new ChoiceOption(0, "Keine Karte nehmen"));
         for (int i = 0; i < rewards.size(); i++) {
-            output.println("  %d) %s".formatted(i + 1, rewards.get(i)));
+            options.add(new ChoiceOption(i + 1, rewards.get(i).toString()));
         }
-        output.println("  0) Überspringen");
-        int choice = chooseNumber("Wähle eine Karte", 0, rewards.size(), 0);
+        int choice = choose(ChoiceKind.CARD_REWARD, "Kartenbelohnung",
+                "Füge eine Karte deinem Deck hinzu oder überspringe die Belohnung.", options, 0);
         if (choice > 0) {
             Card card = rewards.get(choice - 1);
             player.addCard(card);
             notifyDeckChanged();
-            output.println(card.name() + " wurde dem Deck hinzugefügt.");
+            message(card.name() + " wurde dem Deck hinzugefügt.");
         }
     }
 
     private void runRestSite() {
-        output.println("1) Rasten – 30 % der maximalen HP heilen");
-        output.println("2) Schmieden – eine Karte dauerhaft verbessern");
-        int choice = chooseNumber("Aktion", 1, 2, 1);
+        int choice = choose(ChoiceKind.REST_ACTION, "Rastplatz", "Wähle eine Aktion.", List.of(
+                new ChoiceOption(1, "Rasten – 30 % der maximalen HP heilen"),
+                new ChoiceOption(2, "Schmieden – eine Karte dauerhaft verbessern")
+        ), 1);
         if (choice == 1) {
             int healed = player.heal((int) Math.ceil(player.maxHp() * 0.30));
-            output.println("Du heilst %d HP.".formatted(healed));
+            message("Du heilst %d HP.".formatted(healed));
         } else {
             upgradeCard();
         }
@@ -191,38 +181,41 @@ public final class Game {
     private void upgradeCard() {
         List<Card> upgradeable = player.deck().stream().filter(card -> !card.isUpgraded()).toList();
         if (upgradeable.isEmpty()) {
-            output.println("Alle Karten sind bereits verbessert.");
+            message("Alle Karten sind bereits verbessert.");
             return;
         }
-        output.println("%nVerbesserbare Karten:");
+        List<ChoiceOption> options = new ArrayList<>();
         for (int i = 0; i < upgradeable.size(); i++) {
-            output.println("  %d) %s".formatted(i + 1, upgradeable.get(i)));
+            options.add(new ChoiceOption(i + 1, upgradeable.get(i).toString()));
         }
-        int choice = chooseNumber("Karte verbessern", 1, upgradeable.size(), 1);
+        int choice = choose(ChoiceKind.CARD_UPGRADE, "Karte verbessern",
+                "Wähle eine Karte für die dauerhafte Verbesserung.", options, 1);
         Card card = upgradeable.get(choice - 1);
         card.upgrade();
         notifyDeckChanged();
-        output.println(card.name() + " wurde verbessert: " + card.description());
+        message(card.name() + " wurde verbessert: " + card.description());
     }
 
     private void runEvent() {
         if (random.nextBoolean()) {
-            output.println("Ein vergessener Altar verspricht Macht gegen Blut.");
-            output.println("1) 8 HP opfern und ein Relikt erhalten");
-            output.println("2) Weitergehen");
-            int choice = chooseNumber("Entscheidung", 1, 2, 2);
+            int choice = choose(ChoiceKind.EVENT_ACTION, "Vergessener Altar",
+                    "Der Altar verspricht Macht gegen Blut.", List.of(
+                            new ChoiceOption(1, "8 HP opfern und ein Relikt erhalten"),
+                            new ChoiceOption(2, "Weitergehen")
+                    ), 2);
             if (choice == 1) {
                 int damage = player.takeDamage(8);
-                output.println("Du verlierst %d HP.".formatted(damage));
+                message("Du verlierst %d HP.".formatted(damage));
                 grantRandomRelic();
             }
         } else {
-            output.println("Eine friedliche Quelle glitzert zwischen den Felsen.");
-            output.println("1) Trinken und 15 HP heilen");
-            output.println("2) Im Wasser schmieden und eine Karte verbessern");
-            int choice = chooseNumber("Entscheidung", 1, 2, 1);
+            int choice = choose(ChoiceKind.EVENT_ACTION, "Friedliche Quelle",
+                    "Eine friedliche Quelle glitzert zwischen den Felsen.", List.of(
+                            new ChoiceOption(1, "Trinken und 15 HP heilen"),
+                            new ChoiceOption(2, "Im Wasser eine Karte verbessern")
+                    ), 1);
             if (choice == 1) {
-                output.println("Du heilst %d HP.".formatted(player.heal(15)));
+                message("Du heilst %d HP.".formatted(player.heal(15)));
             } else {
                 upgradeCard();
             }
@@ -233,9 +226,9 @@ public final class Game {
         if (random.nextBoolean()) {
             int gold = 55 + random.nextInt(31);
             player.addGold(gold);
-            output.println("Die Truhe enthält %d Gold.".formatted(gold));
+            message("Die Truhe enthält %d Gold.".formatted(gold));
         } else {
-            output.println("In der Truhe liegt ein Relikt.");
+            message("In der Truhe liegt ein Relikt.");
             grantRandomRelic();
         }
     }
@@ -249,82 +242,42 @@ public final class Game {
         }
         if (available.isEmpty()) {
             player.addGold(75);
-            output.println("Du besitzt bereits alle Relikte und erhältst stattdessen 75 Gold.");
+            message("Du besitzt bereits alle Relikte und erhältst stattdessen 75 Gold.");
             return;
         }
         Relic relic = available.get(random.nextInt(available.size()));
         player.addRelic(relic);
-        output.println("Relikt erhalten: " + relic);
-    }
-
-    private void printCombatState(Combat combat) {
-        output.println("Hand (Nachziehen %d / Ablage %d):".formatted(combat.drawPileSize(), combat.discardPileSize()));
-        for (int i = 0; i < combat.hand().size(); i++) {
-            output.println("  %d) %s".formatted(i + 1, combat.hand().get(i)));
-        }
+        message("Relikt erhalten: " + relic);
     }
 
     private void printRunStatus(int act, int floor) {
-        output.println("%nAkt %d | Ebene %d/%d".formatted(act, floor, GameMap.FLOORS_PER_ACT));
-    }
-
-    private void printDeck() {
-        output.println("%nDein Deck:");
-        for (int i = 0; i < player.deck().size(); i++) {
-            output.println("  %d) %s".formatted(i + 1, player.deck().get(i)));
-        }
-        output.println("Relikte: " + player.relics());
+        message("Akt %d · Ebene %d von %d".formatted(act, floor, GameMap.FLOORS_PER_ACT));
     }
 
     private int chooseEnemy(List<Enemy> enemies) {
-        output.println("Ziel wählen:");
+        List<ChoiceOption> options = new ArrayList<>();
         for (int i = 0; i < enemies.size(); i++) {
-            output.println("  %d) %s".formatted(i + 1, enemies.get(i).name()));
+            options.add(new ChoiceOption(i + 1, enemies.get(i).name()));
         }
-        return chooseNumber("Ziel", 1, enemies.size(), 1);
+        return choose(ChoiceKind.ENEMY_TARGET, "Ziel wählen",
+                "Klicke das gewünschte Monster an.", options, 1);
     }
 
-    private int choose(String prompt, List<?> choices, int defaultValue) {
-        for (int i = 0; i < choices.size(); i++) {
-            output.println("  %d) %s".formatted(i + 1, choices.get(i)));
-        }
-        return chooseNumber(prompt, 1, choices.size(), defaultValue);
-    }
-
-    private int chooseNumber(String prompt, int minimum, int maximum, int defaultValue) {
-        while (true) {
-            String value = ask("%s [%d-%d]: ".formatted(prompt, minimum, maximum));
-            if (inputClosed) {
-                return defaultValue;
-            }
-            int choice = parseInt(value.trim(), Integer.MIN_VALUE);
-            if (choice >= minimum && choice <= maximum) {
-                return choice;
-            }
-            output.println("Bitte gib eine Zahl zwischen %d und %d ein.".formatted(minimum, maximum));
-        }
-    }
-
-    private String ask(String prompt) {
-        output.print(prompt);
-        output.flush();
-        if (!input.hasNextLine()) {
-            inputClosed = true;
-            return "";
-        }
-        return input.nextLine();
+    private int choose(ChoiceKind kind, String title, String description,
+                       List<ChoiceOption> options, int defaultValue) {
+        return interaction.choose(new ChoiceRequest(kind, title, description, options, defaultValue));
     }
 
     private void printEvents(List<String> events) {
-        events.forEach(output::println);
+        events.forEach(this::message);
     }
 
-    private static int parseInt(String value, int fallback) {
-        try {
-            return Integer.parseInt(value);
-        } catch (NumberFormatException exception) {
-            return fallback;
+    private static List<ChoiceOption> indexedOptions(List<String> labels) {
+        List<ChoiceOption> options = new ArrayList<>();
+        for (int index = 0; index < labels.size(); index++) {
+            options.add(new ChoiceOption(index + 1, labels.get(index)));
         }
+        return options;
     }
 
     private static boolean targetsEnemy(Card card) {
@@ -335,10 +288,11 @@ public final class Game {
     }
 
     private void printTitle() {
-        output.println("=================================");
-        output.println("          M I N I S P I R E");
-        output.println("=================================");
-        output.println("Erklimme drei Akte. Wähle Wege, verbessere dein Deck und besiege die Bosse.");
+        message("Willkommen bei Minispire. Erklimme drei Akte und besiege die Bosse.");
+    }
+
+    private void message(String message) {
+        interaction.message(message);
     }
 
     private void notifyDeckChanged() {

@@ -31,15 +31,23 @@ public final class CardsPanel extends JPanel {
     private final JPanel deckCards = cardRow();
     private final JLabel handTitle = sectionTitle("HAND · 0 KARTEN");
     private final JLabel deckTitle = sectionTitle("DECK · 0 KARTEN");
+    private final JButton endTurnButton = new JButton("Zug beenden");
     private final JButton confirmButton = new JButton("Karte bestätigen");
     private final List<JToggleButton> handButtons = new ArrayList<>();
     private final IntConsumer playCard;
+    private final Runnable endTurn;
     private List<CardView> displayedDeck = List.of();
     private int selectedIndex = -1;
 
     public CardsPanel(IntConsumer playCard) {
+        this(playCard, () -> {
+        });
+    }
+
+    public CardsPanel(IntConsumer playCard, Runnable endTurn) {
         super(new BorderLayout(0, 8));
         this.playCard = playCard;
+        this.endTurn = endTurn;
         setOpaque(true);
         setBackground(BACKGROUND);
         setBorder(BorderFactory.createEmptyBorder(10, 0, 0, 0));
@@ -59,8 +67,17 @@ public final class CardsPanel extends JPanel {
         confirmButton.setPreferredSize(new Dimension(190, 38));
         confirmButton.addActionListener(event -> confirmSelection());
 
+        endTurnButton.setEnabled(false);
+        endTurnButton.setBackground(new Color(84, 72, 92));
+        endTurnButton.setForeground(Color.WHITE);
+        endTurnButton.setFocusPainted(false);
+        endTurnButton.setFont(new Font(Font.SANS_SERIF, Font.BOLD, 14));
+        endTurnButton.setPreferredSize(new Dimension(150, 38));
+        endTurnButton.addActionListener(event -> endPlayerTurn());
+
         JPanel actions = new JPanel(new BorderLayout());
         actions.setOpaque(false);
+        actions.add(endTurnButton, BorderLayout.WEST);
         actions.add(confirmButton, BorderLayout.EAST);
         add(actions, BorderLayout.SOUTH);
     }
@@ -94,6 +111,7 @@ public final class CardsPanel extends JPanel {
         handTitle.setText("HAND · 0 KARTEN");
         confirmButton.setText("Karte bestätigen");
         confirmButton.setEnabled(false);
+        endTurnButton.setEnabled(false);
         refresh(handCards);
     }
 
@@ -118,6 +136,7 @@ public final class CardsPanel extends JPanel {
         handTitle.setText("HAND · %d KARTEN · %d ENERGIE".formatted(state.hand().size(), state.energy()));
         confirmButton.setText("Karte bestätigen");
         confirmButton.setEnabled(false);
+        endTurnButton.setEnabled(state.acceptingCardSelection());
         refresh(handCards);
     }
 
@@ -192,8 +211,16 @@ public final class CardsPanel extends JPanel {
         }
         int cardNumber = selectedIndex + 1;
         confirmButton.setEnabled(false);
+        endTurnButton.setEnabled(false);
         handButtons.forEach(button -> button.setEnabled(false));
         playCard.accept(cardNumber);
+    }
+
+    private void endPlayerTurn() {
+        endTurnButton.setEnabled(false);
+        confirmButton.setEnabled(false);
+        handButtons.forEach(button -> button.setEnabled(false));
+        endTurn.run();
     }
 
     private JPanel createSection(JLabel title, JPanel cards) {
@@ -283,5 +310,9 @@ public final class CardsPanel extends JPanel {
 
     JButton confirmButton() {
         return confirmButton;
+    }
+
+    JButton endTurnButton() {
+        return endTurnButton;
     }
 }
