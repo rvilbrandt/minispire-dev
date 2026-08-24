@@ -32,7 +32,7 @@ public final class GameWindow extends JFrame {
     private static final Color ACCENT = new Color(205, 112, 72);
 
     private final JTextArea gameOutput = new JTextArea();
-    private final MapPanel mapPanel = new MapPanel();
+    private final MapPanel mapPanel = new MapPanel(this::submitNode);
     private final CardsPanel cardsPanel = new CardsPanel(this::submitCard);
     private final EnemiesPanel enemiesPanel = new EnemiesPanel(this::submitTarget);
     private final JTextField commandInput = new JTextField();
@@ -228,6 +228,10 @@ public final class GameWindow extends JFrame {
 
     private void submitTarget(int targetNumber) {
         submitCommand(Integer.toString(targetNumber), "Ziel " + targetNumber);
+    }
+
+    private void submitNode(int nodeNumber) {
+        submitCommand(Integer.toString(nodeNumber), "Kartenknoten " + nodeNumber);
     }
 
     private void submitCommand(String command, String displayText) {

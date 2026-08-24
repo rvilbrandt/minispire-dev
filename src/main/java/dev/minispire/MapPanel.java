@@ -4,18 +4,23 @@ import javax.swing.JPanel;
 import javax.swing.SwingUtilities;
 import java.awt.BasicStroke;
 import java.awt.Color;
+import java.awt.Cursor;
 import java.awt.Dimension;
 import java.awt.Font;
 import java.awt.FontMetrics;
 import java.awt.Graphics;
 import java.awt.Graphics2D;
+import java.awt.Point;
 import java.awt.RenderingHints;
+import java.awt.event.MouseAdapter;
+import java.awt.event.MouseEvent;
 import java.awt.geom.Line2D;
 import java.awt.geom.RoundRectangle2D;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.function.IntConsumer;
 
 public final class MapPanel extends JPanel {
     private static final Color BACKGROUND = new Color(31, 27, 38);
@@ -27,13 +32,24 @@ public final class MapPanel extends JPanel {
     private static final int NODE_WIDTH = 78;
     private static final int NODE_HEIGHT = 38;
 
+    private final IntConsumer selectNode;
     private MapViewState state;
+    private boolean selectionEnabled;
+    private int selectedChoice = -1;
+    private int hoveredChoice = -1;
 
     public MapPanel() {
+        this(ignored -> {
+        });
+    }
+
+    public MapPanel(IntConsumer selectNode) {
+        this.selectNode = selectNode;
         setOpaque(true);
         setBackground(BACKGROUND);
         setPreferredSize(new Dimension(340, 560));
         setMinimumSize(new Dimension(280, 420));
+        bindMouseSelection();
     }
 
     public void showMap(MapViewState newState) {
@@ -42,6 +58,10 @@ public final class MapPanel extends JPanel {
             return;
         }
         state = newState;
+        selectionEnabled = !newState.choices().isEmpty();
+        selectedChoice = -1;
+        hoveredChoice = -1;
+        setCursor(Cursor.getDefaultCursor());
         repaint();
     }
 
@@ -89,7 +109,8 @@ public final class MapPanel extends JPanel {
         for (int floor = 1; floor <= GameMap.FLOORS_PER_ACT; floor++) {
             MapNode visited = findVisited(floor);
             if (visited != null) {
-                floors.put(floor, List.of(new VisualNode(centerX(), floorY(floor), visited.type(), "✓", true, false)));
+                floors.put(floor, List.of(new VisualNode(centerX(), floorY(floor), visited.type(), "✓",
+                        true, false, -1)));
             } else if (floor == state.floor() && !state.choices().isEmpty()) {
                 floors.put(floor, choiceNodes(floor));
             } else if (floor >= state.floor()) {
@@ -106,7 +127,7 @@ public final class MapPanel extends JPanel {
         int count = state.choices().size();
         for (int index = 0; index < count; index++) {
             nodes.add(new VisualNode(nodeX(index, count), floorY(floor), state.choices().get(index).type(),
-                    Integer.toString(index + 1), false, true));
+                    Integer.toString(index + 1), false, true, index));
         }
         return nodes;
     }
@@ -116,7 +137,7 @@ public final class MapPanel extends JPanel {
         List<VisualNode> nodes = new ArrayList<>();
         for (int index = 0; index < count; index++) {
             NodeType knownType = floor == GameMap.FLOORS_PER_ACT ? NodeType.BOSS : null;
-            nodes.add(new VisualNode(nodeX(index, count), floorY(floor), knownType, "?", false, false));
+            nodes.add(new VisualNode(nodeX(index, count), floorY(floor), knownType, "?", false, false, -1));
         }
         return nodes;
     }
@@ -143,8 +164,11 @@ public final class MapPanel extends JPanel {
 
         canvas.setColor(node.type() == null ? UNKNOWN : colorFor(node.type()));
         canvas.fill(shape);
-        canvas.setStroke(new BasicStroke(node.current() ? 3f : 2f));
-        canvas.setColor(node.visited() ? VISITED : node.current() ? CURRENT : new Color(125, 109, 134));
+        boolean chosen = node.choiceIndex() == selectedChoice;
+        boolean hovered = selectionEnabled && node.choiceIndex() == hoveredChoice;
+        canvas.setStroke(new BasicStroke(chosen || hovered ? 4f : node.current() ? 3f : 2f));
+        canvas.setColor(node.visited() || chosen ? VISITED : hovered ? TEXT
+                : node.current() ? CURRENT : new Color(125, 109, 134));
         canvas.draw(shape);
 
         String name = node.type() == null ? "Unbekannt" : node.type().displayName();
@@ -154,7 +178,7 @@ public final class MapPanel extends JPanel {
         canvas.drawString(name, node.x() - metrics.stringWidth(name) / 2, node.y() + 4);
 
         canvas.setFont(new Font(Font.SANS_SERIF, Font.BOLD, 12));
-        canvas.setColor(node.visited() ? VISITED : CURRENT);
+        canvas.setColor(node.visited() || chosen ? VISITED : CURRENT);
         canvas.drawString(node.marker(), x + 6, y + 14);
     }
 
@@ -169,7 +193,7 @@ public final class MapPanel extends JPanel {
         canvas.setColor(new Color(171, 158, 179));
         String text = state.choices().isEmpty()
                 ? "Aktueller Weg"
-                : "Goldener Rand = jetzt wählbar";
+                : selectionEnabled ? "Goldene Nodes anklicken" : "Auswahl wird betreten …";
         canvas.drawString(text, 18, getHeight() - 13);
     }
 
@@ -203,6 +227,70 @@ public final class MapPanel extends JPanel {
         return getWidth() / 2;
     }
 
+    private void bindMouseSelection() {
+        MouseAdapter mouse = new MouseAdapter() {
+            @Override
+            public void mouseMoved(MouseEvent event) {
+                int choice = selectionEnabled ? choiceAt(event.getPoint()) : -1;
+                if (choice != hoveredChoice) {
+                    hoveredChoice = choice;
+                    setCursor(choice >= 0
+                            ? Cursor.getPredefinedCursor(Cursor.HAND_CURSOR)
+                            : Cursor.getDefaultCursor());
+                    repaint();
+                }
+            }
+
+            @Override
+            public void mouseExited(MouseEvent event) {
+                hoveredChoice = -1;
+                setCursor(Cursor.getDefaultCursor());
+                repaint();
+            }
+
+            @Override
+            public void mouseClicked(MouseEvent event) {
+                if (!selectionEnabled || event.getButton() != MouseEvent.BUTTON1) {
+                    return;
+                }
+                int choice = choiceAt(event.getPoint());
+                if (choice < 0) {
+                    return;
+                }
+                selectionEnabled = false;
+                selectedChoice = choice;
+                hoveredChoice = -1;
+                setCursor(Cursor.getDefaultCursor());
+                repaint();
+                selectNode.accept(choice + 1);
+            }
+        };
+        addMouseListener(mouse);
+        addMouseMotionListener(mouse);
+    }
+
+    private int choiceAt(Point point) {
+        if (state == null || state.choices().isEmpty()) {
+            return -1;
+        }
+        for (VisualNode node : choiceNodes(state.floor())) {
+            if (nodeBounds(node).contains(point)) {
+                return node.choiceIndex();
+            }
+        }
+        return -1;
+    }
+
+    private static RoundRectangle2D nodeBounds(VisualNode node) {
+        return new RoundRectangle2D.Double(node.x() - NODE_WIDTH / 2.0, node.y() - NODE_HEIGHT / 2.0,
+                NODE_WIDTH, NODE_HEIGHT, 16, 16);
+    }
+
+    Point choiceCenter(int choiceIndex) {
+        VisualNode node = choiceNodes(state.floor()).get(choiceIndex);
+        return new Point(node.x(), node.y());
+    }
+
     private static Color colorFor(NodeType type) {
         return switch (type) {
             case COMBAT -> new Color(126, 62, 62);
@@ -214,6 +302,7 @@ public final class MapPanel extends JPanel {
         };
     }
 
-    private record VisualNode(int x, int y, NodeType type, String marker, boolean visited, boolean current) {
+    private record VisualNode(int x, int y, NodeType type, String marker, boolean visited, boolean current,
+                              int choiceIndex) {
     }
 }
