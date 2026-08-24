@@ -35,6 +35,7 @@ public final class GameWindow extends JFrame {
     private final MapPanel mapPanel = new MapPanel(this::submitNode);
     private final CardsPanel cardsPanel = new CardsPanel(this::submitCard);
     private final EnemiesPanel enemiesPanel = new EnemiesPanel(this::submitTarget);
+    private final PlayerStatsPanel playerStatsPanel = new PlayerStatsPanel();
     private final JTextField commandInput = new JTextField();
     private final JButton submitButton = new JButton("Eingeben");
     private final PipedInputStream gameInput;
@@ -84,6 +85,11 @@ public final class GameWindow extends JFrame {
             public void deckChanged(java.util.List<CardView> deck) {
                 cardsPanel.showDeck(deck);
             }
+
+            @Override
+            public void playerChanged(PlayerView player) {
+                playerStatsPanel.showPlayer(player);
+            }
         };
         Thread.ofVirtual()
                 .name("minispire-game-loop")
@@ -115,8 +121,11 @@ public final class GameWindow extends JFrame {
     }
 
     private JPanel createHeader() {
-        JPanel header = new JPanel(new BorderLayout());
+        JPanel header = new JPanel(new BorderLayout(0, 10));
         header.setOpaque(false);
+
+        JPanel branding = new JPanel(new BorderLayout());
+        branding.setOpaque(false);
 
         JLabel title = new JLabel("MINISPIRE");
         title.setForeground(ACCENT);
@@ -126,8 +135,10 @@ public final class GameWindow extends JFrame {
         subtitle.setForeground(MUTED_TEXT);
         subtitle.setFont(new Font(Font.SANS_SERIF, Font.PLAIN, 14));
 
-        header.add(title, BorderLayout.WEST);
-        header.add(subtitle, BorderLayout.EAST);
+        branding.add(title, BorderLayout.WEST);
+        branding.add(subtitle, BorderLayout.EAST);
+        header.add(branding, BorderLayout.NORTH);
+        header.add(playerStatsPanel, BorderLayout.CENTER);
         return header;
     }
 

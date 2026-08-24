@@ -23,6 +23,7 @@ java -cp target/classes dev.minispire.App --console
 - Handkarten werden mit der Maus ausgewählt und über `Karte bestätigen` ausgespielt.
 - Das dauerhafte Deck wird neben der aktuellen Hand als scrollbare Kartenübersicht angezeigt.
 - Gegner werden mit HP, Block, Statuswerten und ihrer nächsten Aktion als Monsterkarten angezeigt.
+- Spielerwerte wie HP, Energie, Block, Gold, Status, Deckgröße und Relikte bleiben oben dauerhaft sichtbar.
 - Wenn eine Karte ein Ziel benötigt, wird das gewünschte Monster direkt angeklickt.
 - Der nächste Kartenknoten wird direkt auf der grafischen Map angeklickt.
 - Zahlen für Wege, Ziele und andere Entscheidungen können weiterhin im Eingabefeld eingegeben werden.

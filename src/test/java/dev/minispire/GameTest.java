@@ -21,6 +21,7 @@ class GameTest {
         List<MapViewState> mapStates = new ArrayList<>();
         List<CombatViewState> combatStates = new ArrayList<>();
         List<List<CardView>> deckStates = new ArrayList<>();
+        List<PlayerView> playerStates = new ArrayList<>();
         GameObserver observer = new GameObserver() {
             @Override
             public void mapChanged(MapViewState state) {
@@ -35,6 +36,11 @@ class GameTest {
             @Override
             public void deckChanged(List<CardView> deck) {
                 deckStates.add(deck);
+            }
+
+            @Override
+            public void playerChanged(PlayerView player) {
+                playerStates.add(player);
             }
         };
         Game game = new Game(new ByteArrayInputStream(new byte[0]),
@@ -52,5 +58,10 @@ class GameTest {
         assertTrue(combatStates.getFirst().acceptingCardSelection());
         assertTrue(combatStates.getFirst().enemies().getFirst().hp() > 0);
         assertFalse(combatStates.getFirst().enemies().getFirst().intentDescription().isBlank());
+        assertEquals(70, playerStates.getFirst().hp());
+        assertTrue(playerStates.stream().anyMatch(PlayerView::inCombat));
+        assertFalse(output.contains("| HP "));
+        assertFalse(output.contains("| Block "));
+        assertFalse(output.contains("| Absicht:"));
     }
 }

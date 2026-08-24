@@ -15,4 +15,7 @@ public interface GameObserver {
 
     default void deckChanged(java.util.List<CardView> deck) {
     }
+
+    default void playerChanged(PlayerView player) {
+    }
 }

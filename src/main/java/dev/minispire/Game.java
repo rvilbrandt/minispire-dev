@@ -38,6 +38,7 @@ public final class Game {
 
     public void run() {
         printTitle();
+        notifyPlayerChanged(false);
         notifyDeckChanged();
         for (int act = 1; act <= ACTS && player.isAlive(); act++) {
             List<MapNode> visitedNodes = new ArrayList<>();
@@ -51,17 +52,17 @@ public final class Game {
                 observer.mapChanged(new MapViewState(act, floor, visitedNodes, List.of()));
                 output.println("%nDu betrittst: " + selected.type().displayName());
                 resolveNode(selected.type(), act);
+                notifyPlayerChanged(false);
             }
             if (player.isAlive() && act < ACTS) {
                 int healed = player.heal(player.maxHp() / 4);
                 output.println("%nAkt %d geschafft! Auf dem Weg zum nächsten Akt heilst du %d HP.".formatted(act, healed));
+                notifyPlayerChanged(false);
             }
         }
 
         if (player.isAlive()) {
             output.println("%n*** SIEG! Du hast den Turm bezwungen. ***");
-            output.println("Finales Deck: %d Karten | Gold: %d | Relikte: %d"
-                    .formatted(player.deck().size(), player.gold(), player.relics().size()));
         } else {
             output.println("%n*** Du bist gefallen. Der Durchlauf endet hier. ***");
         }
@@ -79,7 +80,7 @@ public final class Game {
     }
 
     private void runCombat(List<Enemy> enemies, boolean elite, boolean boss) {
-        output.println("Gegner: " + enemies.stream().map(enemy -> enemy.name() + " (" + enemy.hp() + " HP)")
+        output.println("Gegner: " + enemies.stream().map(Enemy::name)
                 .reduce((left, right) -> left + ", " + right).orElse(""));
         Combat combat = new Combat(player, enemies, random);
 
@@ -92,7 +93,7 @@ public final class Game {
 
             while (!combat.isWon() && player.energy() >= 0) {
                 printCombatState(combat);
-                observer.combatChanged(CombatViewState.from(combat, true));
+                notifyCombatChanged(combat, true, false);
                 String command = ask("Karte spielen (Nummer), [D]eck ansehen oder [0] Zug beenden: ").trim();
                 if (inputClosed) {
                     break;
@@ -103,7 +104,7 @@ public final class Game {
                 }
                 int selection = parseInt(command, -1);
                 if (selection == 0) {
-                    observer.combatChanged(CombatViewState.from(combat, false));
+                    notifyCombatChanged(combat, false, false);
                     break;
                 }
                 if (selection < 1 || selection > combat.hand().size()) {
@@ -114,12 +115,12 @@ public final class Game {
                 Card card = combat.hand().get(selection - 1);
                 int target = 0;
                 if (targetsEnemy(card) && combat.livingEnemies().size() > 1) {
-                    observer.combatChanged(CombatViewState.from(combat, false, true));
+                    notifyCombatChanged(combat, false, true);
                     target = chooseEnemy(combat.livingEnemies()) - 1;
                 }
                 PlayResult result = combat.playCard(selection - 1, target);
                 output.println(result.message());
-                observer.combatChanged(CombatViewState.from(combat, false));
+                notifyCombatChanged(combat, false, false);
                 if (!result.successful()) {
                     continue;
                 }
@@ -129,9 +130,10 @@ public final class Game {
             }
 
             if (!combat.isWon()) {
-                observer.combatChanged(CombatViewState.from(combat, false));
+                notifyCombatChanged(combat, false, false);
                 output.println("%nGegnerzug:");
                 printEvents(combat.endPlayerTurn());
+                notifyCombatChanged(combat, false, false);
             }
         }
 
@@ -142,6 +144,7 @@ public final class Game {
             output.println("%nKampf gewonnen!" + (healed > 0 ? " Brennendes Blut heilt " + healed + " HP." : ""));
             grantCombatRewards(elite, boss);
         }
+        notifyPlayerChanged(false);
     }
 
     private void grantCombatRewards(boolean elite, boolean boss) {
@@ -149,6 +152,7 @@ public final class Game {
         int gold = player.hasRelic(Relic.GOLDEN_IDOL) ? baseGold * 5 / 4 : baseGold;
         player.addGold(gold);
         output.println("Belohnung: %d Gold.".formatted(gold));
+        notifyPlayerChanged(false);
 
         if (elite || boss) {
             grantRandomRelic();
@@ -254,15 +258,6 @@ public final class Game {
     }
 
     private void printCombatState(Combat combat) {
-        output.println("%n%s: %d/%d HP | Block %d | Energie %d | Status: %s"
-                .formatted(player.name(), player.hp(), player.maxHp(), player.block(), player.energy(), player.statuses()));
-        List<Enemy> living = combat.livingEnemies();
-        for (int i = 0; i < living.size(); i++) {
-            Enemy enemy = living.get(i);
-            output.println("G%d %s: %d/%d HP | Block %d | Status: %s | Absicht: %s"
-                    .formatted(i + 1, enemy.name(), enemy.hp(), enemy.maxHp(), enemy.block(), enemy.statuses(),
-                            enemy.intent().description(enemy)));
-        }
         output.println("Hand (Nachziehen %d / Ablage %d):".formatted(combat.drawPileSize(), combat.discardPileSize()));
         for (int i = 0; i < combat.hand().size(); i++) {
             output.println("  %d) %s".formatted(i + 1, combat.hand().get(i)));
@@ -270,8 +265,7 @@ public final class Game {
     }
 
     private void printRunStatus(int act, int floor) {
-        output.println("%nAkt %d | Ebene %d/%d | HP %d/%d | Gold %d | Deck %d"
-                .formatted(act, floor, GameMap.FLOORS_PER_ACT, player.hp(), player.maxHp(), player.gold(), player.deck().size()));
+        output.println("%nAkt %d | Ebene %d/%d".formatted(act, floor, GameMap.FLOORS_PER_ACT));
     }
 
     private void printDeck() {
@@ -285,7 +279,7 @@ public final class Game {
     private int chooseEnemy(List<Enemy> enemies) {
         output.println("Ziel wählen:");
         for (int i = 0; i < enemies.size(); i++) {
-            output.println("  %d) %s (%d HP)".formatted(i + 1, enemies.get(i).name(), enemies.get(i).hp()));
+            output.println("  %d) %s".formatted(i + 1, enemies.get(i).name()));
         }
         return chooseNumber("Ziel", 1, enemies.size(), 1);
     }
@@ -349,5 +343,15 @@ public final class Game {
 
     private void notifyDeckChanged() {
         observer.deckChanged(CombatViewState.toViews(player.deck()));
+        notifyPlayerChanged(false);
+    }
+
+    private void notifyCombatChanged(Combat combat, boolean acceptingCards, boolean acceptingTarget) {
+        observer.combatChanged(CombatViewState.from(combat, acceptingCards, acceptingTarget));
+        notifyPlayerChanged(true);
+    }
+
+    private void notifyPlayerChanged(boolean inCombat) {
+        observer.playerChanged(PlayerView.from(player, inCombat));
     }
 }
