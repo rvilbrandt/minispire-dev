@@ -2,6 +2,12 @@
 
 Ein spielbares Konsolen-Deckbuilding-Spiel auf Basis der abstrahierten Kernmechaniken von *Slay the Spire*.
 
+# HALT, STOPP!
+
+Es handelt sich hierbei ausschließlich um ein Testprojekt, mit denen ich die Möglichkeiten von OpenAI's Codex ausprobiere. 
+
+## In der Regel ist alles hier ausschließlich von Codex entwickelt.
+
 ## Starten
 
 Voraussetzungen: Java 21 und Maven.
