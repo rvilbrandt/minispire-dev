@@ -3,14 +3,29 @@ package dev.minispire;
 import org.junit.jupiter.api.Test;
 
 import javax.swing.SwingUtilities;
+import java.awt.BorderLayout;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class CardsPanelTest {
+    @Test
+    void primaryCardActionIsNextToTheHandAndEndTurnIsOnTheRight() throws Exception {
+        CardsPanel panel = new CardsPanel(ignored -> {
+        });
+
+        SwingUtilities.invokeAndWait(() -> {
+            BorderLayout layout = (BorderLayout) panel.actionPanel().getLayout();
+
+            assertSame(panel.confirmButton(), layout.getLayoutComponent(BorderLayout.WEST));
+            assertSame(panel.endTurnButton(), layout.getLayoutComponent(BorderLayout.EAST));
+        });
+    }
+
     @Test
     void mouseSelectionRequiresConfirmationBeforeSubmittingCard() throws Exception {
         AtomicInteger submittedCard = new AtomicInteger();
@@ -25,6 +40,7 @@ class CardsPanelTest {
 
             assertEquals(0, submittedCard.get());
             assertTrue(panel.confirmButton().isEnabled());
+            assertEquals("Ausgewählt: Verteidigen", panel.selectionHint().getText());
 
             panel.confirmButton().doClick();
         });

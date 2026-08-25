@@ -15,7 +15,9 @@ import java.awt.BorderLayout;
 import java.awt.Color;
 import java.awt.Dimension;
 import java.awt.Font;
-import java.awt.GridLayout;
+import java.awt.GridBagConstraints;
+import java.awt.GridBagLayout;
+import java.awt.Insets;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.function.IntConsumer;
@@ -33,6 +35,8 @@ public final class CardsPanel extends JPanel {
     private final JLabel deckTitle = sectionTitle("DECK · 0 KARTEN");
     private final JButton endTurnButton = new JButton("Zug beenden");
     private final JButton confirmButton = new JButton("Karte bestätigen");
+    private final JLabel selectionHint = new JLabel("Handkarte auswählen", SwingConstants.CENTER);
+    private final JPanel actionPanel = new JPanel(new BorderLayout(12, 0));
     private final List<JToggleButton> handButtons = new ArrayList<>();
     private final IntConsumer playCard;
     private final Runnable endTurn;
@@ -53,10 +57,19 @@ public final class CardsPanel extends JPanel {
         setBorder(BorderFactory.createEmptyBorder(10, 0, 0, 0));
         setPreferredSize(new Dimension(800, 245));
 
-        JPanel galleries = new JPanel(new GridLayout(1, 2, 12, 0));
+        JPanel galleries = new JPanel(new GridBagLayout());
         galleries.setOpaque(false);
-        galleries.add(createSection(handTitle, handCards));
-        galleries.add(createSection(deckTitle, deckCards));
+        GridBagConstraints constraints = new GridBagConstraints();
+        constraints.gridy = 0;
+        constraints.fill = GridBagConstraints.BOTH;
+        constraints.weighty = 1.0;
+        constraints.weightx = 0.65;
+        constraints.insets = new Insets(0, 0, 0, 12);
+        galleries.add(createSection(handTitle, handCards), constraints);
+        constraints.gridx = 1;
+        constraints.weightx = 0.35;
+        constraints.insets = new Insets(0, 0, 0, 0);
+        galleries.add(createSection(deckTitle, deckCards), constraints);
         add(galleries, BorderLayout.CENTER);
 
         confirmButton.setEnabled(false);
@@ -65,6 +78,7 @@ public final class CardsPanel extends JPanel {
         confirmButton.setFocusPainted(false);
         confirmButton.setFont(new Font(Font.SANS_SERIF, Font.BOLD, 14));
         confirmButton.setPreferredSize(new Dimension(190, 38));
+        confirmButton.setToolTipText("Ausgewählte Handkarte spielen");
         confirmButton.addActionListener(event -> confirmSelection());
 
         endTurnButton.setEnabled(false);
@@ -73,13 +87,16 @@ public final class CardsPanel extends JPanel {
         endTurnButton.setFocusPainted(false);
         endTurnButton.setFont(new Font(Font.SANS_SERIF, Font.BOLD, 14));
         endTurnButton.setPreferredSize(new Dimension(150, 38));
+        endTurnButton.setToolTipText("Spielerzug ohne weitere Karte beenden");
         endTurnButton.addActionListener(event -> endPlayerTurn());
 
-        JPanel actions = new JPanel(new BorderLayout());
-        actions.setOpaque(false);
-        actions.add(endTurnButton, BorderLayout.WEST);
-        actions.add(confirmButton, BorderLayout.EAST);
-        add(actions, BorderLayout.SOUTH);
+        selectionHint.setForeground(MUTED);
+        selectionHint.setFont(new Font(Font.SANS_SERIF, Font.PLAIN, 12));
+        actionPanel.setOpaque(false);
+        actionPanel.add(confirmButton, BorderLayout.WEST);
+        actionPanel.add(selectionHint, BorderLayout.CENTER);
+        actionPanel.add(endTurnButton, BorderLayout.EAST);
+        add(actionPanel, BorderLayout.SOUTH);
     }
 
     public void showCombat(CombatViewState state) {
@@ -112,6 +129,7 @@ public final class CardsPanel extends JPanel {
         confirmButton.setText("Karte bestätigen");
         confirmButton.setEnabled(false);
         endTurnButton.setEnabled(false);
+        selectionHint.setText("Kein Kampf aktiv");
         refresh(handCards);
     }
 
@@ -137,11 +155,19 @@ public final class CardsPanel extends JPanel {
         confirmButton.setText("Karte bestätigen");
         confirmButton.setEnabled(false);
         endTurnButton.setEnabled(state.acceptingCardSelection());
+        boolean hasPlayableCard = state.hand().stream().anyMatch(card -> card.cost() <= state.energy());
+        if (!state.acceptingCardSelection()) {
+            selectionHint.setText("Aktion wird ausgeführt …");
+        } else if (!hasPlayableCard) {
+            selectionHint.setText("Keine spielbare Karte · Zug beenden");
+        } else {
+            selectionHint.setText("Handkarte auswählen");
+        }
         refresh(handCards);
     }
 
     private JToggleButton createHandCard(CardView card, int index, CombatViewState state) {
-        JToggleButton button = new JToggleButton(cardHtml(card, index + 1));
+        JToggleButton button = new JToggleButton(cardHtml(card));
         styleCardButton(button, card.type());
         boolean affordable = card.cost() <= state.energy();
         button.setEnabled(state.acceptingCardSelection() && affordable);
@@ -151,6 +177,7 @@ public final class CardsPanel extends JPanel {
             selectedIndex = index;
             confirmButton.setText("%s spielen".formatted(card.name()));
             confirmButton.setEnabled(true);
+            selectionHint.setText("Ausgewählt: " + card.name());
         });
         return button;
     }
@@ -213,6 +240,7 @@ public final class CardsPanel extends JPanel {
         confirmButton.setEnabled(false);
         endTurnButton.setEnabled(false);
         handButtons.forEach(button -> button.setEnabled(false));
+        selectionHint.setText("Karte wird ausgespielt …");
         playCard.accept(cardNumber);
     }
 
@@ -220,6 +248,7 @@ public final class CardsPanel extends JPanel {
         endTurnButton.setEnabled(false);
         confirmButton.setEnabled(false);
         handButtons.forEach(button -> button.setEnabled(false));
+        selectionHint.setText("Zug wird beendet …");
         endTurn.run();
     }
 
@@ -283,9 +312,9 @@ public final class CardsPanel extends JPanel {
                 BorderFactory.createEmptyBorder(5, 5, 5, 5)));
     }
 
-    private static String cardHtml(CardView card, int number) {
+    private static String cardHtml(CardView card) {
         return "<html><body style='width:112px;text-align:center'>"
-                + "<b>" + number + " · " + card.name() + "</b><br>"
+                + "<b>" + card.name() + "</b><br>"
                 + "<font color='#b0a4b9'>" + card.type().displayName() + "</font><br><br>"
                 + card.description() + "<br><br><b>⚡ " + card.cost() + "</b>"
                 + "</body></html>";
@@ -314,5 +343,13 @@ public final class CardsPanel extends JPanel {
 
     JButton endTurnButton() {
         return endTurnButton;
+    }
+
+    JPanel actionPanel() {
+        return actionPanel;
+    }
+
+    JLabel selectionHint() {
+        return selectionHint;
     }
 }
